@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-import fitz  # PyMuPDF
+import pymupdf  # PyMuPDF
 
 
 RESET = "\033[0m"
@@ -102,10 +102,10 @@ def find_pdfs(input_dir: Path, recursive: bool) -> list[Path]:
 	return sorted((p for p in input_dir.glob(pattern) if p.is_file()), key=lambda p: p.as_posix().lower())
 
 
-def make_matrix(page: fitz.Page, width: int | None, height: int | None) -> fitz.Matrix:
+def make_matrix(page: pymupdf.Page, width: int | None, height: int | None) -> pymupdf.Matrix:
 	rect = page.rect
 	if width is None and height is None:
-		return fitz.Matrix(1, 1)
+		return pymupdf.Matrix(1, 1)
 
 	scale_x = width / rect.width if width is not None else None
 	scale_y = height / rect.height if height is not None else None
@@ -115,12 +115,12 @@ def make_matrix(page: fitz.Page, width: int | None, height: int | None) -> fitz.
 	if scale_y is None:
 		scale_y = scale_x
 
-	# fitz.Matrix supports independent x/y scaling, preserving aspect ratio when
+	# pymupdf.Matrix supports independent x/y scaling, preserving aspect ratio when
 	# only one dimension is requested and using exact dimensions when both are set.
-	return fitz.Matrix(scale_x, scale_y)
+	return pymupdf.Matrix(scale_x, scale_y)
 
 
-def pixmap_for_page(page: fitz.Page, width: int | None, height: int | None) -> fitz.Pixmap:
+def pixmap_for_page(page: pymupdf.Page, width: int | None, height: int | None) -> pymupdf.Pixmap:
 	matrix = make_matrix(page, width, height)
 	return page.get_pixmap(matrix=matrix, alpha=False)
 
@@ -129,7 +129,7 @@ def image_ext(jpeg: bool) -> str:
 	return "jpg" if jpeg else "png"
 
 
-def save_pixmap(pix: fitz.Pixmap, path: Path, jpeg: bool) -> int:
+def save_pixmap(pix: pymupdf.Pixmap, path: Path, jpeg: bool) -> int:
 	if jpeg:
 		pix.save(path.as_posix(), jpg_quality=95)
 	else:
@@ -137,28 +137,28 @@ def save_pixmap(pix: fitz.Pixmap, path: Path, jpeg: bool) -> int:
 	return path.stat().st_size
 
 
-def stack_pixmaps(pixmaps: list[fitz.Pixmap], horizontal: bool) -> fitz.Pixmap:
+def stack_pixmaps(pixmaps: list[pymupdf.Pixmap], horizontal: bool) -> pymupdf.Pixmap:
 	if not pixmaps:
 		raise ValueError("No pages to stack.")
 
 	if horizontal:
 		total_width = sum(p.width for p in pixmaps)
 		max_height = max(p.height for p in pixmaps)
-		out = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, total_width, max_height))
+		out = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, total_width, max_height))
 		out.clear_with(255)
 		x = 0
 		for pix in pixmaps:
-			out.copy(pix, fitz.IRect(x, 0, x + pix.width, pix.height))
+			out.copy(pix, pymupdf.IRect(x, 0, x + pix.width, pix.height))
 			x += pix.width
 		return out
 
 	max_width = max(p.width for p in pixmaps)
 	total_height = sum(p.height for p in pixmaps)
-	out = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, max_width, total_height))
+	out = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, max_width, total_height))
 	out.clear_with(255)
 	y = 0
 	for pix in pixmaps:
-		out.copy(pix, fitz.IRect(0, y, pix.width, y + pix.height))
+		out.copy(pix, pymupdf.IRect(0, y, pix.width, y + pix.height))
 		y += pix.height
 	return out
 
@@ -176,13 +176,13 @@ def process_pdf(
 	pdf_out_dir = output_dir / relative.with_suffix("")
 	pdf_out_dir.mkdir(parents=True, exist_ok=True)
 
-	doc = fitz.open(pdf_path)
+	doc = pymupdf.open(pdf_path)
 	try:
 		page_count = min(len(doc), args.pages or len(doc))
 		if page_count == 0:
 			return 0, 0, (time.perf_counter() - pdf_start) * 1000
 
-		pixmaps: list[fitz.Pixmap] = []
+		pixmaps: list[pymupdf.Pixmap] = []
 		total_bytes = 0
 		ext = image_ext(args.jpeg)
 
