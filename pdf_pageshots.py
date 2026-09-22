@@ -146,20 +146,34 @@ def stack_pixmaps(pixmaps: list[pymupdf.Pixmap], horizontal: bool) -> pymupdf.Pi
 		max_height = max(p.height for p in pixmaps)
 		out = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, total_width, max_height))
 		out.clear_with(255)
+
 		x = 0
 		for pix in pixmaps:
-			out.copy(pix, pymupdf.IRect(x, 0, x + pix.width, pix.height))
+			row_bytes = pix.width * 3
+			for y in range(pix.height):
+				src_start = y * row_bytes
+				dst_start = (y * total_width + x) * 3
+				out.samples_mv[dst_start:dst_start + row_bytes] = \
+					pix.samples_mv[src_start:src_start + row_bytes]
 			x += pix.width
+
 		return out
 
 	max_width = max(p.width for p in pixmaps)
 	total_height = sum(p.height for p in pixmaps)
 	out = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, max_width, total_height))
 	out.clear_with(255)
-	y = 0
+
+	y_offset = 0
 	for pix in pixmaps:
-		out.copy(pix, pymupdf.IRect(0, y, pix.width, y + pix.height))
-		y += pix.height
+		row_bytes = pix.width * 3
+		for y in range(pix.height):
+			src_start = y * row_bytes
+			dst_start = ((y_offset + y) * max_width) * 3
+			out.samples_mv[dst_start:dst_start + row_bytes] = \
+				pix.samples_mv[src_start:src_start + row_bytes]
+		y_offset += pix.height
+
 	return out
 
 
